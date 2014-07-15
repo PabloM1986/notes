@@ -6,5 +6,4 @@ var MongoReaction = require('mongo-reaction'),
 
 var db = MongoReaction.map("notes", "mongodb://" + config.dbhost + ":"+ config.dbport + "/notes");
 
-
-module.exports = db;
+module.exports.db = db;
