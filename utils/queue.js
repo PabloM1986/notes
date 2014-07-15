@@ -13,9 +13,10 @@ function Queue () {
 }
 
 Queue.prototype.async = function () {
-    this._async = true;
+    var self = this;
+    self._async = true;
     return function () {
-        this.next();
+        self.next();
     }
 };
 
@@ -24,26 +25,29 @@ Queue.prototype.abort = function () {
 };
 
 Queue.prototype.run = function () {
-    var current = this._queue.pop();
+    var current = this._queue.shift();
+    this.isRunning = true;
     if (current) {
-        if (this._async) {
+        do {
             current(this);
-        } else {
-            do {
-                current(this);
-            } while (current = this._queue.pop() && !this._async);
+        } while ((current = this._queue.shift()) && !this._async);
+        if (!this._async) {
+            this.finished();
         }
     }
 };
 
 Queue.prototype.next = function () {
-    if (this._queue.length > 0 && this.isRunning) {
-        this._queue.pop()(this);
+    this._async = false;
+    if (this.isRunning) {
+        if (this._queue.length > 0) {
+            this._queue.shift()(this);
+        }
+        if (this._queue.length == 0) {
+            this.finished();
+        }
     } else {
         throw new Error("Execution aborted unexpectedly");
-    }
-    if (this._queue.length == 0) {
-        this.finished();
     }
 };
 
@@ -54,4 +58,74 @@ Queue.prototype.add = function (callback) {
     this._queue.push(callback);
 };
 
-Queue.prototype.finished = function () {};
+Queue.prototype.finished = function () {
+    console.log("finished");
+};
+
+function testSync () {
+    var result = "",
+        expected = "1234",
+        i;
+
+    var testQueue = new Queue();
+    for (i=1;i<=4;i++) {
+        testQueue.add(function (i) {
+            return function () {
+                result += i;
+            }
+        }(i));
+    }
+    testQueue.run();
+    if (result == expected) {
+        console.log("Sync test passed");
+    } else {
+        console.error("Sync test failed");
+    }
+}
+
+function testAsync () {
+    var result = "",
+        expected = "1234";
+
+    var testQueue = new Queue();
+
+    testQueue.add(function (q) {
+        var done = q.async();
+        setTimeout(function () {
+            result += 1;
+            done();
+        }, 1000);
+    });
+    testQueue.add(function (q) {
+        var done = q.async();
+        setTimeout(function () {
+            result += 2;
+            done();
+        }, 500);
+    });
+    testQueue.add(function (q) {
+        var done = q.async();
+        setTimeout(function () {
+            result += 3;
+            done();
+        }, 1000);
+    });
+    testQueue.add(function (q) {
+        var done = q.async();
+        setTimeout(function () {
+            result += 4;
+            done();
+        }, 500);
+    });
+
+    testQueue.finished = function () {
+        if (result == expected) {
+            console.log("Async test passed");
+        } else {
+            console.error("Async test failed");
+        }
+
+    };
+
+    testQueue.run();
+}
